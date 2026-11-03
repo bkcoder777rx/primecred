@@ -1,0 +1,123 @@
+@import "tailwindcss";
+
+/* Tema escuro verde + dourado do painel. */
+:root {
+  color-scheme: dark;
+  --fundo: #05110c;
+  --superficie: #0a1c14;
+  --superficie-2: #0e2519;
+  --texto: #eef3f0;
+  --texto-suave: #93a89c;
+  --borda: #1b3a2b;
+  --marca: #e3b54e;
+  --marca-forte: #f7dc8f;
+  --marca-suave: rgba(227, 181, 78, 0.12);
+  --perigo: #f87171;
+  --alerta: #fbbf24;
+}
+
+@theme inline {
+  --color-fundo: var(--fundo);
+  --color-superficie: var(--superficie);
+  --color-superficie-2: var(--superficie-2);
+  --color-texto: var(--texto);
+  --color-suave: var(--texto-suave);
+  --color-borda: var(--borda);
+  --color-marca: var(--marca);
+  --color-marca-forte: var(--marca-forte);
+  --color-marca-suave: var(--marca-suave);
+  --color-perigo: var(--perigo);
+  --color-alerta: var(--alerta);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background:
+    radial-gradient(90% 60% at 70% -10%, rgba(18, 90, 58, 0.35), transparent 60%),
+    radial-gradient(60% 50% at 0% 100%, rgba(227, 181, 78, 0.06), transparent 60%),
+    var(--fundo);
+  background-attachment: fixed;
+  color: var(--texto);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+select option {
+  background: var(--superficie);
+  color: var(--texto);
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-borda bg-superficie/80 px-4 py-2.5 text-sm font-medium text-texto transition hover:border-marca/50 hover:bg-superficie-2 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-primario {
+    @apply border-[#f7dc8f]/50 bg-gradient-to-b from-[#f7dc8f] via-[#e8bb52] to-[#c8922f] font-semibold text-[#1a1204] shadow-[0_8px_24px_-10px_rgba(227,181,78,0.7)] hover:border-[#f7dc8f] hover:brightness-105;
+  }
+  .btn-contorno {
+    @apply border-marca/70 bg-transparent font-semibold hover:bg-marca-suave;
+  }
+  .btn-perigo {
+    @apply border-perigo/50 bg-transparent text-perigo hover:border-perigo hover:bg-red-500/10;
+  }
+  .btn-whats {
+    @apply border-[#1faa53] bg-[#1faa53] text-white hover:bg-[#25d366];
+  }
+  .btn-pequeno {
+    @apply px-3 py-1.5 text-xs;
+  }
+  .campo {
+    @apply w-full rounded-xl border border-borda bg-[#071610] px-3.5 py-2.5 text-base text-texto outline-none transition placeholder:text-suave/70 focus:border-marca/70 focus:ring-2 focus:ring-marca/15 sm:text-sm;
+  }
+  .rotulo {
+    @apply mb-1.5 block text-sm font-medium text-texto;
+  }
+  .cartao {
+    @apply rounded-2xl border border-borda bg-gradient-to-br from-[#0c2219]/95 to-[#07150f]/95 p-4 shadow-[0_10px_40px_-20px_rgba(0,0,0,0.8)] sm:p-5;
+  }
+  .pilula {
+    @apply shrink-0 rounded-full border border-borda bg-superficie/70 px-4 py-2 text-sm text-texto/85 transition hover:border-marca/50;
+  }
+  .pilula-ativa {
+    @apply border-transparent bg-gradient-to-b from-[#f7dc8f] to-[#e3b54e] font-semibold text-[#1a1204];
+  }
+  .tabela {
+    @apply w-full text-left text-sm;
+  }
+  .tabela th {
+    @apply border-b border-borda px-3 py-2 text-xs font-semibold tracking-wide text-suave uppercase;
+  }
+  .tabela td {
+    @apply border-b border-borda px-3 py-3 align-middle;
+  }
+  .tabela tbody tr:last-child td {
+    @apply border-b-0;
+  }
+}
+
+/* Impressão (recibo): fundo branco e texto escuro. */
+@media print {
+  :root {
+    color-scheme: light;
+    --fundo: #ffffff;
+    --superficie: #ffffff;
+    --superficie-2: #ffffff;
+    --texto: #14201b;
+    --texto-suave: #4b5b54;
+    --borda: #d7ded9;
+    --marca: #0f6b4f;
+    --marca-forte: #0a5139;
+    --marca-suave: #e5f2ec;
+  }
+  .nao-imprimir {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .cartao {
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+}

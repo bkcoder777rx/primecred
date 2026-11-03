@@ -1,0 +1,130 @@
+"use server";
+
+// Ação pública da página de divulgação: registra o pedido e devolve o link de cadastro.
+import { randomBytes } from "node:crypto";
+import { mensagemDeErro } from "@/lib/acao";
+import { carregarConfiguracoes } from "@/lib/consultas";
+import { formatarMoeda, formatarTelefone, lerMoeda, somenteDigitos } from "@/lib/formato";
+import { notificar } from "@/lib/notificar";
+import {
+  FORMAS_PAGAMENTO_PEDIDO,
+  ORIGEM_POR_VALOR,
+  TIPO_RENDA_POR_VALOR,
+  cidadeAtendida,
+  type FormaPagamentoPedido,
+  type OrigemPedido,
+  type TipoRenda,
+} from "@/lib/pedido";
+import { criarClienteServico } from "@/lib/supabase/admin";
+
+type Retorno = { ok: true; token: string } | { ok: false; mensagem: string };
+
+export type EntradaPedido = {
+  valor: string;
+  formaPagamento: FormaPagamentoPedido;
+  cidade: string;
+  renda: string;
+  tipoRenda: TipoRenda;
+  nome: string;
+  telefone: string;
+  instagram: string;
+  origem: OrigemPedido | "";
+  origemDetalhe: string;
+  /** Campo invisível: se vier preenchido, é robô. */
+  site?: string;
+};
+
+export async function iniciarSolicitacao(empresaSlug: string, e: EntradaPedido): Promise<Retorno> {
+  const valor = lerMoeda(e.valor);
+  const renda = lerMoeda(e.renda);
+  const cidade = cidadeAtendida(e.cidade);
+  const nome = e.nome.trim().replace(/\s+/g, " ").slice(0, 120);
+  const telefone = somenteDigitos(e.telefone);
+  const instagram = e.instagram.trim().replace(/^@+/, "").replace(/\s/g, "").slice(0, 60) || null;
+  const origem = e.origem && ORIGEM_POR_VALOR[e.origem] ? e.origem : null;
+
+  if (e.site) return { ok: false, mensagem: "Não foi possível enviar." };
+  if (!valor || valor <= 0) return { ok: false, mensagem: "Informe o valor desejado." };
+  if (!FORMAS_PAGAMENTO_PEDIDO.some((f) => f.valor === e.formaPagamento)) {
+    return { ok: false, mensagem: "Escolha como deseja pagar." };
+  }
+  if (!cidade) return { ok: false, mensagem: "No momento atendemos apenas as cidades da lista." };
+  if (!renda || renda <= 0) return { ok: false, mensagem: "Informe sua renda mensal." };
+  if (!TIPO_RENDA_POR_VALOR[e.tipoRenda]) return { ok: false, mensagem: "Escolha seu tipo de renda." };
+  if (nome.length < 3) return { ok: false, mensagem: "Informe seu nome completo." };
+  if (![10, 11].includes(telefone.length)) return { ok: false, mensagem: "Informe um WhatsApp válido com DDD." };
+
+  const dados = {
+    nome_indicado: nome,
+    valor_desejado_centavos: valor,
+    forma_pagamento: e.formaPagamento,
+    cidade,
+    renda_centavos: renda,
+    tipo_renda: e.tipoRenda,
+    instagram,
+    origem,
+    origem_detalhe: origem ? e.origemDetalhe.trim().slice(0, 120) || null : null,
+  };
+
+  try {
+    const supabase = criarClienteServico();
+    const { data: empresa } = await supabase.from("empresas").select("id, status").eq("slug", empresaSlug).maybeSingle();
+    if (!empresa || !["teste", "ativa"].includes(empresa.status)) {
+      return { ok: false, mensagem: "Atendimento indisponível no momento." };
+    }
+
+    // Mesmo WhatsApp com pedido em aberto: reaproveita o link em vez de criar outro.
+    const { data: aberta } = await supabase
+      .from("solicitacoes")
+      .select("id, token")
+      .eq("empresa_id", empresa.id)
+      .eq("telefone_indicado", telefone)
+      .in("status", ["aguardando", "correcao"])
+      .gt("expira_em", new Date().toISOString())
+      .order("criado_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (aberta) {
+      await supabase.from("solicitacoes").update(dados).eq("id", aberta.id);
+      return { ok: true, token: aberta.token };
+    }
+
+    // Proteção contra robôs/enxurrada: no máximo 20 pedidos novos pelo site a cada 10 minutos.
+    const { count: recentes } = await supabase
+      .from("solicitacoes")
+      .select("id", { count: "exact", head: true })
+      .eq("empresa_id", empresa.id)
+      .not("tipo_renda", "is", null)
+      .gt("criado_em", new Date(Date.now() - 10 * 60_000).toISOString());
+    if ((recentes ?? 0) >= 20) {
+      return { ok: false, mensagem: "Muitos pedidos agora. Tente de novo em alguns minutos." };
+    }
+
+    const config = await carregarConfiguracoes(supabase, empresa.id);
+    const token = randomBytes(24).toString("base64url");
+    const { data, error } = await supabase
+      .from("solicitacoes")
+      .insert({
+        ...dados,
+        empresa_id: empresa.id,
+        token,
+        telefone_indicado: telefone,
+        expira_em: new Date(Date.now() + config.validade_link_dias * 86_400_000).toISOString(),
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+
+    await notificar(supabase, {
+      empresaId: empresa.id,
+      chave: `pedido-site:${data.id}`,
+      titulo: "Novo pedido pelo site",
+      corpo: `${nome} · ${formatarMoeda(valor)} · ${cidade} · ${formatarTelefone(telefone)}`,
+      link: `/solicitacoes/${data.id}`,
+    });
+    return { ok: true, token };
+  } catch (err) {
+    console.error("Falha ao iniciar solicitação", mensagemDeErro(err));
+    return { ok: false, mensagem: "Não foi possível enviar agora. Tente de novo em instantes." };
+  }
+}
