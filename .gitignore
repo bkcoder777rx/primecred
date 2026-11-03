@@ -43,3 +43,8 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# logs locais (backup de clientes)
+/logs
+# dados de clientes NUNCA vão pro git
+Clientes/
