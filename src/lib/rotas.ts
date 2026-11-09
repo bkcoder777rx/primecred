@@ -2,5 +2,5 @@
 // então nenhuma empresa pode usar estes nomes como endereço (slug).
 export const ROTAS_RESERVADAS = new Set([
   "painel", "clientes", "emprestimos", "cobranca", "solicitacoes", "caixa", "notificacoes",
-  "configuracoes", "usuarios", "recibo", "bk", "suspenso", "api", "login", "obrigado", "s", "trocar-senha",
+  "configuracoes", "usuarios", "recibo", "bk", "suspenso", "api", "login", "obrigado", "s", "trocar-senha", "envio-documentos",
 ]);
