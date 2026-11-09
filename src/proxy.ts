@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { ROTAS_RESERVADAS } from "@/lib/rotas";
 
 // Rotas que não exigem login: páginas de divulgação, login, link do cliente e rotina diária.
-const PUBLICAS_EXATAS = ["/", "/login", "/obrigado"];
-const PUBLICAS_PREFIXO = ["/s/", "/api/cron/"];
+const PUBLICAS_EXATAS = ["/", "/login", "/obrigado", "/envio-documentos"];
+const PUBLICAS_PREFIXO = ["/s/", "/envio-documentos/", "/api/cron/"];
 // Qualquer "/<algo>" que não seja uma rota do sistema é a página de uma empresa.
 function ehPaginaDeEmpresa(caminho: string) {
   const m = caminho.match(/^\/([a-z0-9]+(?:-[a-z0-9]+)*)\/?$/);

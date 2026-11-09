@@ -128,3 +128,85 @@ export async function iniciarSolicitacao(empresaSlug: string, e: EntradaPedido):
     return { ok: false, mensagem: "Não foi possível enviar agora. Tente de novo em instantes." };
   }
 }
+
+export type EntradaEnvioDocumentos = {
+  nome: string;
+  telefone: string;
+  /** Campo invisível: se vier preenchido, é robô. */
+  site?: string;
+};
+
+/**
+ * Link fixo "Envio de Documentos": o atendente manda só para quem quer fechar.
+ * O cliente informa nome e WhatsApp e segue para o mesmo envio de dados e documentos do /s/<token>.
+ */
+export async function iniciarEnvioDocumentos(empresaSlug: string, e: EntradaEnvioDocumentos): Promise<Retorno> {
+  const nome = e.nome.trim().replace(/\s+/g, " ").slice(0, 120);
+  const telefone = somenteDigitos(e.telefone);
+
+  if (e.site) return { ok: false, mensagem: "Não foi possível enviar." };
+  if (nome.length < 3) return { ok: false, mensagem: "Informe seu nome completo." };
+  if (![10, 11].includes(telefone.length)) return { ok: false, mensagem: "Informe um WhatsApp válido com DDD." };
+
+  try {
+    const supabase = criarClienteServico();
+    const { data: empresa } = await supabase.from("empresas").select("id, status").eq("slug", empresaSlug).maybeSingle();
+    if (!empresa || !["teste", "ativa"].includes(empresa.status)) {
+      return { ok: false, mensagem: "Atendimento indisponível no momento." };
+    }
+
+    // Mesmo WhatsApp com envio em aberto (pelo site, pelo painel ou por este link): continua de onde parou.
+    const { data: aberta } = await supabase
+      .from("solicitacoes")
+      .select("id, token, nome_indicado")
+      .eq("empresa_id", empresa.id)
+      .eq("telefone_indicado", telefone)
+      .in("status", ["aguardando", "correcao"])
+      .gt("expira_em", new Date().toISOString())
+      .order("criado_em", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (aberta) {
+      if (!aberta.nome_indicado) await supabase.from("solicitacoes").update({ nome_indicado: nome }).eq("id", aberta.id);
+      return { ok: true, token: aberta.token };
+    }
+
+    // Proteção contra robôs/enxurrada: no máximo 20 envios novos sem pedido do site a cada 10 minutos.
+    const { count: recentes } = await supabase
+      .from("solicitacoes")
+      .select("id", { count: "exact", head: true })
+      .eq("empresa_id", empresa.id)
+      .is("tipo_renda", null)
+      .gt("criado_em", new Date(Date.now() - 10 * 60_000).toISOString());
+    if ((recentes ?? 0) >= 20) {
+      return { ok: false, mensagem: "Muitos envios agora. Tente de novo em alguns minutos." };
+    }
+
+    const config = await carregarConfiguracoes(supabase, empresa.id);
+    const token = randomBytes(24).toString("base64url");
+    const { data, error } = await supabase
+      .from("solicitacoes")
+      .insert({
+        empresa_id: empresa.id,
+        token,
+        nome_indicado: nome,
+        telefone_indicado: telefone,
+        expira_em: new Date(Date.now() + config.validade_link_dias * 86_400_000).toISOString(),
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+
+    await notificar(supabase, {
+      empresaId: empresa.id,
+      chave: `envio-documentos:${data.id}`,
+      titulo: "Cliente começou o envio de documentos",
+      corpo: `${nome} · ${formatarTelefone(telefone)} abriu o link de Envio de Documentos.`,
+      link: `/solicitacoes/${data.id}`,
+    });
+    return { ok: true, token };
+  } catch (err) {
+    console.error("Falha ao iniciar envio de documentos", mensagemDeErro(err));
+    return { ok: false, mensagem: "Não foi possível continuar agora. Tente de novo em instantes." };
+  }
+}
