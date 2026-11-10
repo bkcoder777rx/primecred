@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "criar-admin": "node --env-file=.env.local scripts/criar-admin.mjs"
+    "criar-admin": "node --env-file=.env.local scripts/criar-admin.mjs",
+    "backup-clientes": "node --env-file=.env.local scripts/backup-clientes.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
