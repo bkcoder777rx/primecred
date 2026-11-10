@@ -76,6 +76,12 @@ export type Solicitacao = {
   instagram: string | null;
   origem: OrigemPedido | null;
   origem_detalhe: string | null;
+  utm_source?: string | null;
+  utm_campaign?: string | null;
+  utm_medium?: string | null;
+  utm_content?: string | null;
+  utm_term?: string | null;
+  fbclid?: string | null;
   expira_em: string;
   criado_em: string;
 };

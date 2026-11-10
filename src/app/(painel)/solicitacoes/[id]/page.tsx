@@ -14,6 +14,7 @@ import { STATUS_DOCUMENTO, STATUS_SOLICITACAO } from "@/lib/rotulos";
 import { exigirAdmin } from "@/lib/supabase/server";
 import type { Cliente, Documento, Referencia, Solicitacao } from "@/lib/tipos";
 import { urlDoSite } from "@/lib/url";
+import { separarNomeId } from "@/lib/utm";
 import {
   alterarStatusSolicitacao,
   avaliarDocumento,
@@ -180,6 +181,28 @@ export default async function PaginaSolicitacao({ params }: PageProps<"/solicita
                 {s.origem ? ORIGEM_POR_VALOR[s.origem].rotulo : "—"}
                 {s.origem_detalhe && <span className="block text-xs font-normal text-suave">{s.origem_detalhe}</span>}
               </LinhaInfo>
+            </Cartao>
+          )}
+
+          {(s.utm_source || s.utm_campaign || s.utm_content) && (
+            <Cartao titulo="Anúncio de origem">
+              <LinhaInfo rotulo="Fonte">{s.utm_source ?? "—"}</LinhaInfo>
+              {(
+                [
+                  ["Campanha", s.utm_campaign],
+                  ["Conjunto", s.utm_medium],
+                  ["Anúncio", s.utm_content],
+                ] as const
+              ).map(([rotulo, valor]) => {
+                const v = separarNomeId(valor);
+                return (
+                  <LinhaInfo key={rotulo} rotulo={rotulo}>
+                    {v ? v.nome : "—"}
+                    {v?.id && <span className="block text-xs font-normal text-suave">ID {v.id}</span>}
+                  </LinhaInfo>
+                );
+              })}
+              <LinhaInfo rotulo="Posicionamento">{s.utm_term ?? "—"}</LinhaInfo>
             </Cartao>
           )}
 
