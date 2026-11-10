@@ -16,6 +16,7 @@ import {
   type TipoRenda,
 } from "@/lib/pedido";
 import { criarClienteServico } from "@/lib/supabase/admin";
+import { limparUtms, type Utms } from "@/lib/utm";
 
 type Retorno = { ok: true; token: string } | { ok: false; mensagem: string };
 
@@ -32,6 +33,8 @@ export type EntradaPedido = {
   origemDetalhe: string;
   /** Campo invisível: se vier preenchido, é robô. */
   site?: string;
+  /** Parâmetros do anúncio clicado (utm_source, utm_campaign…). */
+  utms?: Utms;
 };
 
 export async function iniciarSolicitacao(empresaSlug: string, e: EntradaPedido): Promise<Retorno> {
@@ -65,6 +68,7 @@ export async function iniciarSolicitacao(empresaSlug: string, e: EntradaPedido):
     origem,
     origem_detalhe: origem ? e.origemDetalhe.trim().slice(0, 120) || null : null,
   };
+  const utms = limparUtms(e.utms);
 
   try {
     const supabase = criarClienteServico();
@@ -86,6 +90,7 @@ export async function iniciarSolicitacao(empresaSlug: string, e: EntradaPedido):
       .maybeSingle();
     if (aberta) {
       await supabase.from("solicitacoes").update(dados).eq("id", aberta.id);
+      if (Object.keys(utms).length) await gravarUtms(supabase, aberta.id, utms);
       return { ok: true, token: aberta.token };
     }
 
@@ -114,6 +119,7 @@ export async function iniciarSolicitacao(empresaSlug: string, e: EntradaPedido):
       .select("id")
       .single();
     if (error) throw error;
+    if (Object.keys(utms).length) await gravarUtms(supabase, data.id, utms);
 
     await notificar(supabase, {
       empresaId: empresa.id,
@@ -127,6 +133,12 @@ export async function iniciarSolicitacao(empresaSlug: string, e: EntradaPedido):
     console.error("Falha ao iniciar solicitação", mensagemDeErro(err));
     return { ok: false, mensagem: "Não foi possível enviar agora. Tente de novo em instantes." };
   }
+}
+
+/** Grava as UTMs à parte: se a migration 0005 ainda não rodou, o pedido não se perde por causa delas. */
+async function gravarUtms(supabase: ReturnType<typeof criarClienteServico>, id: string, utms: Utms) {
+  const { error } = await supabase.from("solicitacoes").update(utms).eq("id", id);
+  if (error) console.error("Falha ao gravar UTMs (rodou a migration 0005?)", error.message);
 }
 
 export type EntradaEnvioDocumentos = {

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, X } from "lucide-react";
 import { PedidoWizard } from "@/components/landing/pedido-wizard";
 import { rastrear } from "@/components/pixel-meta";
 import { BotaoDourado, OURO_TEXTO } from "@/components/publico/visual";
 import { linkWhatsApp } from "@/lib/formato";
+import { capturarUtms } from "@/lib/utm";
 
 type Painel = null | "como" | "pedido";
 
@@ -47,6 +48,8 @@ export function Landing({
   prazo: number;
 }) {
   const [painel, setPainel] = useState<Painel>(null);
+  // Guarda as UTMs do anúncio assim que a pessoa chega, para enviar junto com o pedido.
+  useEffect(() => capturarUtms(), []);
   const linkDuvidas = whatsapp
     ? linkWhatsApp(whatsapp, `Olá! Vim pelo site da ${empresa} e tenho uma dúvida.`)
     : null;
@@ -107,7 +110,7 @@ export function Landing({
       </footer>
 
       {painel === "como" && <ComoFunciona onFechar={() => setPainel(null)} onSolicitar={() => setPainel("pedido")} />}
-      {painel === "pedido" && <PedidoWizard empresaSlug={empresaSlug} taxa={taxa} prazo={prazo} onFechar={() => setPainel(null)} />}
+      {painel === "pedido" && <PedidoWizard empresaSlug={empresaSlug} taxa={taxa} prazo={prazo} whatsapp={whatsapp} onFechar={() => setPainel(null)} />}
     </main>
   );
 }

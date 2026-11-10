@@ -50,7 +50,8 @@ import {
   TituloDestaque,
 } from "@/components/publico/visual";
 import { calcularJuros } from "@/lib/emprestimo/calculo";
-import { formatarMoeda, lerMoeda, mascaraMoeda, somenteDigitos } from "@/lib/formato";
+import { formatarMoeda, lerMoeda, linkWhatsApp, mascaraMoeda, somenteDigitos } from "@/lib/formato";
+import { lerUtms } from "@/lib/utm";
 import { CIDADES_ATENDIDAS, ORIGENS, TIPOS_RENDA, UF_ATENDIDA, type OrigemPedido, type TipoRenda } from "@/lib/pedido";
 
 const ICONE_RENDA: Record<TipoRenda, LucideIcon> = {
@@ -79,11 +80,14 @@ export function PedidoWizard({
   empresaSlug,
   taxa,
   prazo,
+  whatsapp,
   onFechar,
 }: {
   empresaSlug: string;
   taxa: number;
   prazo: number;
+  /** WhatsApp da empresa: ao enviar a análise, o cliente é levado para lá. */
+  whatsapp: string;
   onFechar: () => void;
 }) {
   const router = useRouter();
@@ -121,13 +125,25 @@ export function PedidoWizard({
   async function enviar() {
     setErro(null);
     setEnviando(true);
-    const r = await iniciarSolicitacao(empresaSlug, p);
+    const r = await iniciarSolicitacao(empresaSlug, { ...p, utms: lerUtms() });
     if (!r.ok) {
       setEnviando(false);
       setErro(r.mensagem);
       return;
     }
     rastrear("Lead", { value: valor / 100, currency: "BRL" });
+    if (whatsapp) {
+      const texto = [
+        "Olá! Acabei de enviar minha análise pelo site.",
+        "",
+        `*Nome:* ${p.nome.trim()}`,
+        `*Cidade:* ${p.cidade}`,
+        `*Valor do empréstimo:* ${formatarMoeda(valor)}`,
+      ].join("\n");
+      window.location.assign(linkWhatsApp(whatsapp, texto));
+      return;
+    }
+    // Sem WhatsApp cadastrado para a empresa: segue para o envio de documentos.
     router.push(`/s/${r.token}`);
   }
 
@@ -440,11 +456,15 @@ export function PedidoWizard({
             <div className="pt-2">
               <BotaoDourado tipo="submit" disabled={!passo3Ok || enviando}>
                 {enviando ? <Loader2 className="size-5 animate-spin" /> : null}
-                {enviando ? "Enviando…" : "Continuar"}
+                {enviando ? "Enviando…" : "Enviar minha análise"}
                 {!enviando && <ArrowRight className="size-5" strokeWidth={2.5} />}
               </BotaoDourado>
             </div>
-            <Rodape icone={ShieldCheck}>No próximo passo você envia os documentos pelo celular.</Rodape>
+            <Rodape icone={ShieldCheck}>
+              {whatsapp
+                ? "Depois de enviar, você fala com a nossa equipe pelo WhatsApp."
+                : "No próximo passo você envia os documentos pelo celular."}
+            </Rodape>
           </form>
         )}
       </div>
